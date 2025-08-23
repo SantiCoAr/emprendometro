@@ -8,6 +8,8 @@ type AuthContextType = {
   loading: boolean;
   signInWithEmail: (email: string) => Promise<{ error?: string }>;
   signOut: () => Promise<void>;
+  hasTestCompleted: boolean;
+  setHasTestCompleted: (v: boolean) => void; // para actualizar tras guardar
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -16,32 +18,65 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   signInWithEmail: async () => ({}),
   signOut: async () => {},
+  hasTestCompleted: false,
+  setHasTestCompleted: () => {},
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasTestCompleted, setHasTestCompleted] = useState(false);
 
-  // Carga inicial de sesión + suscripción a cambios
+  // Carga inicial + suscripción a cambios de sesión
   useEffect(() => {
-    let mounted = true;
+    let cancelled = false;
 
-    (async () => {
+    const load = async () => {
       const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
+      if (cancelled) return;
       setSession(data.session ?? null);
       setUser(data.session?.user ?? null);
       setLoading(false);
-    })();
+
+      if (data.session?.user) {
+        const { data: row } = await supabase
+          .from("results")
+          .select("id")
+          .eq("user_id", data.session.user.id)
+          .limit(1)
+          .maybeSingle(); // no lanza error si no hay fila
+        if (!cancelled) setHasTestCompleted(!!row);
+      } else {
+        setHasTestCompleted(false);
+      }
+    };
+
+    load();
 
     const { data: sub } = supabase.auth.onAuthStateChange((_evt, newSession) => {
       setSession(newSession ?? null);
       setUser(newSession?.user ?? null);
+      setLoading(false);
+
+      if (!newSession?.user) {
+        setHasTestCompleted(false);
+        return;
+      }
+      // Re-chequear bandera al cambiar usuario/sesión
+      (async () => {
+        const { data: row } = await supabase
+          .from("results")
+          .select("id")
+          .eq("user_id", newSession.user!.id)
+          .limit(1)
+          .maybeSingle();
+        setHasTestCompleted(!!row);
+      })();
     });
 
     return () => {
-      mounted = false;
+      cancelled = true;
       sub.subscription.unsubscribe();
     };
   }, []);
@@ -59,7 +94,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, signInWithEmail, signOut }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user,
+        loading,
+        signInWithEmail,
+        signOut,
+        hasTestCompleted,
+        setHasTestCompleted,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
