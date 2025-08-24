@@ -1,30 +1,35 @@
-// src/context/TestContext.tsx
 import { createContext, useReducer } from "react";
-import type { ReactNode } from "react";
+import type { Dispatch, ReactNode } from "react";
 
-type AnswerMap = Record<string, number>; // id -> value
-
-interface State {
+/** --- Estado y acciones --- */
+type AnswerValue = number; // 0..3
+export type TestState = {
   index: number;
-  answers: AnswerMap;
-}
+  answers: Record<number, AnswerValue>;
+};
+
+const initialState: TestState = {
+  index: 0,
+  answers: {},
+};
 
 type Action =
-  | { type: "ANSWER"; id: string; value: number }
+  | { type: "ANSWER"; id: number; value: AnswerValue }
   | { type: "NEXT" }
   | { type: "PREV" }
   | { type: "RESET" };
 
-const initialState: State = { index: 0, answers: {} };
-
-function reducer(state: State, action: Action): State {
+function reducer(state: TestState, action: Action): TestState {
   switch (action.type) {
     case "ANSWER":
-      return { ...state, answers: { ...state.answers, [action.id]: action.value } };
+      return {
+        ...state,
+        answers: { ...state.answers, [action.id]: action.value },
+      };
     case "NEXT":
       return { ...state, index: state.index + 1 };
     case "PREV":
-      return { ...state, index: state.index - 1 };
+      return { ...state, index: Math.max(0, state.index - 1) };
     case "RESET":
       return initialState;
     default:
@@ -32,16 +37,22 @@ function reducer(state: State, action: Action): State {
   }
 }
 
+/** --- Contexto --- */
 export const TestContext = createContext<{
-  state: State;
-  dispatch: React.Dispatch<Action>;
-}>({ state: initialState, dispatch: () => null });
+  state: TestState;
+  dispatch: Dispatch<Action>;
+}>({
+  state: initialState,
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  dispatch: () => {},
+});
 
-export const TestProvider = ({ children }: { children: ReactNode }) => {
+/** --- Provider --- */
+export function TestProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   return (
     <TestContext.Provider value={{ state, dispatch }}>
       {children}
     </TestContext.Provider>
   );
-};
+}
