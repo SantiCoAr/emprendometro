@@ -1,7 +1,6 @@
 // src/context/TestContext.tsx
-import React, { createContext, useReducer } from "react";
+import { createContext, useReducer } from "react";
 import type { ReactNode } from "react";
-import { questions } from "../data/questions";
 
 type AnswerMap = Record<string, number>; // id -> value
 
