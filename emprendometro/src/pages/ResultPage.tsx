@@ -4,8 +4,14 @@ import ResultChart from "../components/ResultChart";
 import { levelLabel, dimensionLabels, calcScores } from "../utils/score";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import { getLastResult, insertResult, fromJson } from "../services/results";
+import {
+  getLastResult,
+  insertResult,
+  fromJson,
+  updateResultFeedback,
+} from "../services/results";
 import type { ScoreByDimension } from "../utils/score";
+import FeedbackView from "../components/FeedbackView";
 
 type LocationState = { from: "completed"; scores: ScoreByDimension[] } | undefined;
 
@@ -14,38 +20,74 @@ export default function ResultPage() {
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-
   const incoming = location.state as LocationState;
 
   const [displayScores, setDisplayScores] = useState<ScoreByDimension[] | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "ok" | "error">("idle");
+  const [feedback, setFeedback] = useState<any>(null);
+  const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
   const savedOnce = useRef(false);
+  const lastResultIdRef = useRef<string | null>(null);
 
+  // 1) Inserción del resultado si vengo de "Finalizar".
   useEffect(() => {
     if (!user) return;
 
-    // Caso A: vengo de “Finalizar” (primer intento o rehacer) → inserto UNA VEZ y muestro eso
     if (incoming?.from === "completed" && incoming.scores && !savedOnce.current) {
       savedOnce.current = true;
       setDisplayScores(incoming.scores);
+
       (async () => {
         setStatus("saving");
         const { error } = await insertResult(user.id, incoming.scores);
         if (error) setStatus("error"); else setStatus("ok");
-        // Limpio el state para no volver a insertar si refresco
+        // Limpio el state para evitar re-insertar al refrescar
         navigate("/result", { replace: true });
       })();
-      return; // no sigo al fetch
+
+      return; // No sigo al fetch en este render
     }
 
-    // Caso B: visita normal / refresh → leo el último de DB
+    // 2) Visita normal o refresh → leer último resultado desde DB (incluye feedback si existe)
     (async () => {
       const { data, error } = await getLastResult(user.id);
       if (error) { console.error(error); return; }
       if (!data) { navigate("/test", { replace: true }); return; }
+
+      lastResultIdRef.current = data.id;
       setDisplayScores(fromJson(data.scores as any));
+      setFeedback(data.feedback ?? null);
     })();
   }, [user, incoming, navigate]);
+
+  // 3) Si tengo scores y no tengo feedback, lo genero (una sola vez) y lo guardo en DB
+  useEffect(() => {
+    const canGenerate = !!user && !!displayScores && !feedback && !!lastResultIdRef.current;
+    if (!canGenerate) return;
+
+    (async () => {
+      try {
+        setFeedbackStatus("loading");
+        const scoresObj = Object.fromEntries(displayScores!.map(s => [s.dimension, s.value]));
+
+        const resp = await fetch("/api/generate-feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scores: scoresObj, userEmail: user!.email }),
+        });
+
+        const json = await resp.json();
+        if (!resp.ok) throw new Error(json?.error || "LLM error");
+
+        setFeedback(json.feedback);
+        await updateResultFeedback(lastResultIdRef.current!, json.feedback);
+        setFeedbackStatus("ok");
+      } catch (e) {
+        console.error(e);
+        setFeedbackStatus("error");
+      }
+    })();
+  }, [user, displayScores, feedback]);
 
   const scores = displayScores ?? calcScores(state.answers);
   const total = useMemo(() => scores.reduce((a, s) => a + s.value, 0), [scores]);
@@ -72,6 +114,17 @@ export default function ResultPage() {
         ))}
       </div>
 
+      {/* Feedback IA */}
+      <div className="mt-8">
+        {feedbackStatus === "loading" && (
+          <p className="text-sm text-gray-500">Generando tu feedback personalizado…</p>
+        )}
+        {feedback && <FeedbackView data={feedback} />}
+        {feedbackStatus === "error" && (
+          <p className="text-sm text-red-700">No pudimos generar el feedback ahora. Intentalo más tarde.</p>
+        )}
+      </div>
+
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         <Link
           to="/"
@@ -81,7 +134,6 @@ export default function ResultPage() {
           Volver al inicio
         </Link>
 
-        {/* Rehacer test: resetea estado y habilita /test aunque haya resultados */}
         <button
           onClick={() => {
             dispatch({ type: "RESET" });
@@ -95,4 +147,3 @@ export default function ResultPage() {
     </div>
   );
 }
-
