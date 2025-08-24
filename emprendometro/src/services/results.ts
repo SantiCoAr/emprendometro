@@ -26,11 +26,11 @@ export async function insertResult(userId: string, scores: ScoreByDimension[]) {
 }
 
 export async function getLastResult(userId: string) {
-  // si en futuro permitimos múltiples intentos, aquí ordenaríamos por created_at desc
   return await supabase
     .from("results")
     .select("id, created_at, scores, total")
     .eq("user_id", userId)
+    .order("created_at", { ascending: false }) // ⬅️ lo más nuevo primero
     .limit(1)
     .maybeSingle();
 }
