@@ -14,7 +14,12 @@ export default function TestPage() {
   // Seguridad básica por si el índice se sale (no debería ocurrir)
   const isOutOfRange = state.index < 0 || state.index >= questions.length;
   const q = isOutOfRange ? questions[0] : questions[state.index];
-  const selected = state.answers[q.id];
+
+  // Asegurar ID numérico para indexar el diccionario de respuestas
+  const id: number =
+    typeof (q as any).id === "number" ? (q as any).id : Number((q as any).id);
+
+  const selected = state.answers[id];
   const isLast = state.index === questions.length - 1;
 
   const handlePrev = () => {
@@ -49,7 +54,7 @@ export default function TestPage() {
         <QuestionCard
           q={q}
           selected={selected}
-          onSelect={(v) => dispatch({ type: "ANSWER", id: q.id, value: v })}
+          onSelect={(v) => dispatch({ type: "ANSWER", id, value: Number(v) })}
         />
 
         <div className="flex justify-between max-w-xl mx-auto mt-6">
@@ -61,7 +66,7 @@ export default function TestPage() {
             Anterior
           </button>
 
-          <button
+        <button
             onClick={handleNext}
             disabled={selected == null}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-50"
