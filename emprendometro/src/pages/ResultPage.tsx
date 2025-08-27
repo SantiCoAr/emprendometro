@@ -12,7 +12,7 @@ import {
 } from "../services/results";
 import type { ScoreByDimension } from "../utils/score";
 import FeedbackView from "../components/FeedbackView";
-import { API_BASE } from "../config"; // <--- NUEVO
+import { API_BASE } from "../config";
 
 type LocationState = { from: "completed"; scores: ScoreByDimension[] } | undefined;
 
@@ -27,8 +27,10 @@ export default function ResultPage() {
   const [status, setStatus] = useState<"idle" | "saving" | "ok" | "error">("idle");
   const [feedback, setFeedback] = useState<any>(null);
   const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
+  const [feedbackError, setFeedbackError] = useState<string | null>(null); // <-- para ver detalle de error
   const savedOnce = useRef(false);
   const lastResultIdRef = useRef<string | null>(null);
+  const attemptedRef = useRef(false); // <-- evita reintento infinito por montaje
 
   // 1) Inserción del resultado si vengo de "Finalizar".
   useEffect(() => {
@@ -61,14 +63,24 @@ export default function ResultPage() {
     })();
   }, [user, incoming, navigate]);
 
-  // 3) Si tengo scores y no tengo feedback, lo genero (una sola vez) y lo guardo en DB
+  // 3) Si tengo scores y no tengo feedback, lo genero (una sola vez por montaje) y lo guardo en DB
   useEffect(() => {
-    const canGenerate = !!user && !!displayScores && !feedback && !!lastResultIdRef.current;
+    const canGenerate =
+      !!user &&
+      !!displayScores &&
+      !feedback &&
+      !!lastResultIdRef.current &&
+      !attemptedRef.current;
+
     if (!canGenerate) return;
+
+    attemptedRef.current = true; // evitamos reintentos en bucle en este montaje
 
     (async () => {
       try {
         setFeedbackStatus("loading");
+        setFeedbackError(null);
+
         const scoresObj = Object.fromEntries(displayScores!.map(s => [s.dimension, s.value]));
 
         const resp = await fetch(`${API_BASE}/api/generate-feedback`, {
@@ -77,18 +89,34 @@ export default function ResultPage() {
           body: JSON.stringify({ scores: scoresObj, userEmail: user!.email }),
         });
 
-        const json = await resp.json();
-        if (!resp.ok) throw new Error(json?.error || "LLM error");
+        const txt = await resp.text();
+        let json: any = null;
+        try {
+          json = JSON.parse(txt);
+        } catch {
+          // si no es JSON, guardo el texto entero como error
+          if (!resp.ok) {
+            setFeedbackError(txt || `HTTP ${resp.status}`);
+            throw new Error(txt || `HTTP ${resp.status}`);
+          }
+        }
+
+        if (!resp.ok) {
+          const detail = json?.detail || json?.error || `HTTP ${resp.status}`;
+          setFeedbackError(detail);
+          throw new Error(detail);
+        }
 
         setFeedback(json.feedback);
         await updateResultFeedback(lastResultIdRef.current!, json.feedback);
         setFeedbackStatus("ok");
-      } catch (e) {
+      } catch (e: any) {
         console.error(e);
         setFeedbackStatus("error");
+        if (!feedbackError) setFeedbackError(e?.message ?? "unknown");
       }
     })();
-  }, [user, displayScores, feedback]);
+  }, [user, displayScores, feedback, API_BASE]);
 
   const scores = displayScores ?? calcScores(state.answers);
   const total = useMemo(() => scores.reduce((a, s) => a + s.value, 0), [scores]);
@@ -122,7 +150,14 @@ export default function ResultPage() {
         )}
         {feedback && <FeedbackView data={feedback} />}
         {feedbackStatus === "error" && (
-          <p className="text-sm text-red-700">No pudimos generar el feedback ahora. Intentalo más tarde.</p>
+          <p className="text-sm text-red-700">
+            No pudimos generar el feedback ahora. Inténtalo más tarde.
+            {feedbackError ? (
+              <span className="block text-xs text-gray-500 mt-1">
+                Detalle: {feedbackError}
+              </span>
+            ) : null}
+          </p>
         )}
       </div>
 
@@ -148,4 +183,3 @@ export default function ResultPage() {
     </div>
   );
 }
-
