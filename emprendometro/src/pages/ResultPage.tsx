@@ -12,6 +12,7 @@ import {
 } from "../services/results";
 import type { ScoreByDimension } from "../utils/score";
 import FeedbackView from "../components/FeedbackView";
+import { API_BASE } from "../config"; // <--- NUEVO
 
 type LocationState = { from: "completed"; scores: ScoreByDimension[] } | undefined;
 
@@ -70,7 +71,7 @@ export default function ResultPage() {
         setFeedbackStatus("loading");
         const scoresObj = Object.fromEntries(displayScores!.map(s => [s.dimension, s.value]));
 
-        const resp = await fetch("/api/generate-feedback", {
+        const resp = await fetch(`${API_BASE}/api/generate-feedback`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ scores: scoresObj, userEmail: user!.email }),
@@ -147,3 +148,4 @@ export default function ResultPage() {
     </div>
   );
 }
+

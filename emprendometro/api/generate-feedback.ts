@@ -4,6 +4,20 @@ import OpenAI from "openai";
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // --- CORS: permite dev local (5173) y tu dominio en Vercel ---
+  const origin = req.headers.origin || "";
+  const allow =
+    origin.includes("localhost:5173") || origin.includes(".vercel.app");
+  res.setHeader("Access-Control-Allow-Origin", allow ? origin : "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  // Responder preflight
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
+  }
+  // -------------------------------------------------------------
+
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -74,3 +88,4 @@ Instrucciones:
     return res.status(500).json({ error: "Internal error", detail: e?.message });
   }
 }
+
