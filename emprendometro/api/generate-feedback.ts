@@ -8,6 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const origin = req.headers.origin || "";
   const allow = origin.includes("localhost:5173") || origin.includes(".vercel.app");
   res.setHeader("Access-Control-Allow-Origin", allow ? origin : "*");
+  res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") return res.status(200).end();
@@ -17,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!process.env.OPENAI_API_KEY) return res.status(500).json({ error: "Missing OPENAI_API_KEY" });
 
   try {
-    // parseo robusto del body (a veces llega como string)
+    // parseo robusto del body
     const raw = (req as any).body;
     const body = typeof raw === "string" ? JSON.parse(raw || "{}") : (raw ?? {});
     const { scores, userEmail } = body as { scores: Record<string, number>; userEmail?: string };
@@ -55,8 +56,7 @@ Instrucciones:
     const completion = await client.chat.completions.create({
       model: "gpt-4o-mini",
       temperature: 0.7,
-      // 👇 Fuerza JSON estricto
-      response_format: { type: "json_object" },
+      response_format: { type: "json_object" }, // JSON estricto
       messages: [
         { role: "system", content: system },
         { role: "user", content: user },
@@ -73,7 +73,6 @@ Instrucciones:
 
     return res.status(200).json({ feedback: json });
   } catch (e: any) {
-    // Devuelve detalle útil para debug
     const status = e?.status ?? e?.response?.status ?? 500;
     const detail =
       e?.message ||
@@ -84,3 +83,4 @@ Instrucciones:
     return res.status(status).json({ error: "OpenAI error", detail });
   }
 }
+
