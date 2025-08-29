@@ -51,7 +51,6 @@ export default function TestPage() {
           </p>
         </div>
 
-        // src/pages/TestPage.tsx  (solo este cambio)
           <QuestionCard
             q={q as any}
             selected={selected}
