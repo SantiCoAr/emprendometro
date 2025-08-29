@@ -11,15 +11,9 @@ export default function TestPage() {
   const { state, dispatch } = useContext(TestContext);
   const navigate = useNavigate();
 
-  // Seguridad básica por si el índice se sale (no debería ocurrir)
-  const isOutOfRange = state.index < 0 || state.index >= questions.length;
-  const q = isOutOfRange ? questions[0] : questions[state.index];
-
-  // Asegurar ID numérico para indexar el diccionario de respuestas
-  const id: number =
-    typeof (q as any).id === "number" ? (q as any).id : Number((q as any).id);
-
-  const selected = state.answers[id];
+  const isOut = state.index < 0 || state.index >= questions.length;
+  const q = isOut ? questions[0] : questions[state.index];
+  const selected = state.answers[q.id];       // debe ser number | undefined
   const isLast = state.index === questions.length - 1;
 
   const handlePrev = () => {
@@ -35,8 +29,10 @@ export default function TestPage() {
       window.scrollTo(0, 0);
       return;
     }
-    // Última pregunta → calculamos scores y vamos a /result
+    // Última: calculamos y navegamos con payload
     const scores = calcScores(state.answers);
+    console.log("DEBUG finish -> answers:", state.answers);
+    console.log("DEBUG finish -> scores:", scores);
     navigate("/result", { state: { from: "completed", scores } });
     window.scrollTo(0, 0);
   };
@@ -53,8 +49,11 @@ export default function TestPage() {
 
         <QuestionCard
           q={q}
-          selected={selected}
-          onSelect={(v) => dispatch({ type: "ANSWER", id, value: Number(v) })}
+          selected={selected ?? null}
+          onSelect={(v: number) => {
+            // v ya es número; guardamos como número
+            dispatch({ type: "ANSWER", id: q.id, value: v });
+          }}
         />
 
         <div className="flex justify-between max-w-xl mx-auto mt-6">
@@ -65,8 +64,7 @@ export default function TestPage() {
           >
             Anterior
           </button>
-
-        <button
+          <button
             onClick={handleNext}
             disabled={selected == null}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-50"
@@ -78,4 +76,5 @@ export default function TestPage() {
     </div>
   );
 }
+
 

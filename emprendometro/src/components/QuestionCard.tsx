@@ -1,28 +1,47 @@
 // src/components/QuestionCard.tsx
-import type { Question } from "../data/questions";
+import { memo } from "react";
 
-interface Props {
+type Question = {
+  id: string | number;
+  text: string;
+  // Podés adaptar esta interfaz a tu estructura real
+  options: { label: string; value: number }[]; // value: 1..4
+};
+
+export default memo(function QuestionCard({
+  q,
+  selected,
+  onSelect,
+}: {
   q: Question;
-  selected?: number;
+  selected?: number | null;
   onSelect: (value: number) => void;
-}
+}) {
+  // name único por pregunta evita “arrastre” del radio
+  const groupName = `q-${q.id}`;
 
-const QuestionCard: React.FC<Props> = ({ q, selected, onSelect }) => (
-  <div className="p-6 bg-white rounded-2xl shadow max-w-xl mx-auto">
-    <h2 className="text-xl font-semibold mb-4">{q.text}</h2>
-    {q.options.map((o) => (
-      <label key={o.label} className="flex items-center gap-2 py-1">
-        <input
-          type="radio"
-          name={q.id}
-          value={o.value}
-          checked={selected === o.value}
-          onChange={() => onSelect(o.value)}
-        />
-        <span>{o.label}) {o.text}</span>
-      </label>
-    ))}
-  </div>
-);
+  return (
+    <div className="max-w-3xl mx-auto mt-4">
+      <h2 className="text-xl font-semibold mb-4">{q.text}</h2>
 
-export default QuestionCard;
+      <div className="space-y-3">
+        {q.options.map((opt) => (
+          <label
+            key={opt.value}
+            className="flex items-center gap-3 cursor-pointer"
+          >
+            <input
+              type="radio"
+              name={groupName}
+              value={opt.value}
+              checked={selected === opt.value}      // ← controlado
+              onChange={() => onSelect(Number(opt.value))} // ← num explícito
+              className="h-4 w-4"
+            />
+            <span>{opt.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+});

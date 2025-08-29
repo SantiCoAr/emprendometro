@@ -1,30 +1,30 @@
-import { createContext, useReducer } from "react";
-import type { Dispatch, ReactNode } from "react";
+// src/context/TestContext.tsx
+import { createContext, useReducer, type Dispatch } from "react";
 
-/** --- Estado y acciones --- */
-type AnswerValue = number; // 0..3
-export type TestState = {
+type Answers = Record<string | number, number>;
+
+type State = {
   index: number;
-  answers: Record<number, AnswerValue>;
-};
-
-const initialState: TestState = {
-  index: 0,
-  answers: {},
+  answers: Answers;
 };
 
 type Action =
-  | { type: "ANSWER"; id: number; value: AnswerValue }
+  | { type: "ANSWER"; id: string | number; value: number }
   | { type: "NEXT" }
   | { type: "PREV" }
   | { type: "RESET" };
 
-function reducer(state: TestState, action: Action): TestState {
+const initialState: State = {
+  index: 0,
+  answers: {},
+};
+
+function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "ANSWER":
       return {
         ...state,
-        answers: { ...state.answers, [action.id]: action.value },
+        answers: { ...state.answers, [action.id]: action.value }, // inmutable
       };
     case "NEXT":
       return { ...state, index: state.index + 1 };
@@ -37,18 +37,15 @@ function reducer(state: TestState, action: Action): TestState {
   }
 }
 
-/** --- Contexto --- */
 export const TestContext = createContext<{
-  state: TestState;
+  state: State;
   dispatch: Dispatch<Action>;
 }>({
   state: initialState,
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  dispatch: () => {},
+  dispatch: () => undefined,
 });
 
-/** --- Provider --- */
-export function TestProvider({ children }: { children: ReactNode }) {
+export function TestProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   return (
     <TestContext.Provider value={{ state, dispatch }}>
