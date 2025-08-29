@@ -1,18 +1,18 @@
-// src/context/TestContext.tsx
 import { createContext, useReducer, type Dispatch } from "react";
 
-type Answers = Record<string | number, number>;
+export type AnswersMap = Record<string, number>;
 
 type State = {
   index: number;
-  answers: Answers;
+  answers: AnswersMap;
 };
 
 type Action =
-  | { type: "ANSWER"; id: string | number; value: number }
+  | { type: "ANSWER"; id: string; value: number }
   | { type: "NEXT" }
   | { type: "PREV" }
-  | { type: "RESET" };
+  | { type: "RESET" }
+  | { type: "GOTO"; index: number };
 
 const initialState: State = {
   index: 0,
@@ -21,15 +21,19 @@ const initialState: State = {
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
-    case "ANSWER":
+    case "ANSWER": {
+      // NUNCA mutar; siempre copiar
       return {
         ...state,
-        answers: { ...state.answers, [action.id]: action.value }, // inmutable
+        answers: { ...state.answers, [action.id]: action.value },
       };
+    }
     case "NEXT":
       return { ...state, index: state.index + 1 };
     case "PREV":
       return { ...state, index: Math.max(0, state.index - 1) };
+    case "GOTO":
+      return { ...state, index: Math.max(0, action.index) };
     case "RESET":
       return initialState;
     default:
@@ -42,7 +46,7 @@ export const TestContext = createContext<{
   dispatch: Dispatch<Action>;
 }>({
   state: initialState,
-  dispatch: () => undefined,
+  dispatch: () => {},
 });
 
 export function TestProvider({ children }: { children: React.ReactNode }) {
@@ -53,3 +57,4 @@ export function TestProvider({ children }: { children: React.ReactNode }) {
     </TestContext.Provider>
   );
 }
+

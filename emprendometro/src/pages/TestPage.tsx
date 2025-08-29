@@ -1,5 +1,4 @@
-// src/pages/TestPage.tsx
-import { useContext } from "react";
+import { useContext, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { TestContext } from "../context/TestContext";
 import { questions } from "../data/questions";
@@ -11,15 +10,16 @@ export default function TestPage() {
   const { state, dispatch } = useContext(TestContext);
   const navigate = useNavigate();
 
-  // Seguridad básica por si el índice se sale (no debería ocurrir)
   const isOutOfRange = state.index < 0 || state.index >= questions.length;
   const q = isOutOfRange ? questions[0] : questions[state.index];
 
-  // Asegurar ID numérico para indexar el diccionario de respuestas
-  const id: number =
-    typeof (q as any).id === "number" ? (q as any).id : Number((q as any).id);
+  // ID siempre presente: usa q.id si existe; si no, fallback al índice
+  const currentId = useMemo(
+    () => (q?.id != null ? String(q.id) : `q${state.index}`),
+    [q?.id, state.index]
+  );
 
-  const selected = state.answers[id];
+  const selected = state.answers[currentId];
   const isLast = state.index === questions.length - 1;
 
   const handlePrev = () => {
@@ -35,7 +35,6 @@ export default function TestPage() {
       window.scrollTo(0, 0);
       return;
     }
-    // Última pregunta → calculamos scores y vamos a /result
     const scores = calcScores(state.answers);
     navigate("/result", { state: { from: "completed", scores } });
     window.scrollTo(0, 0);
@@ -51,12 +50,12 @@ export default function TestPage() {
           </p>
         </div>
 
-          <QuestionCard
-            q={q as any}
-            selected={selected}
-            onSelect={(v) => dispatch({ type: "ANSWER", id: q.id, value: v })}
-          />
-
+        <QuestionCard
+          q={q as any}
+          qid={`group-${currentId}`}                      // <<-- grupo único para radios
+          selected={selected}
+          onSelect={(v) => dispatch({ type: "ANSWER", id: currentId, value: v })}
+        />
 
         <div className="flex justify-between max-w-xl mx-auto mt-6">
           <button
@@ -67,7 +66,7 @@ export default function TestPage() {
             Anterior
           </button>
 
-        <button
+          <button
             onClick={handleNext}
             disabled={selected == null}
             className="px-4 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-50"
@@ -79,4 +78,3 @@ export default function TestPage() {
     </div>
   );
 }
-

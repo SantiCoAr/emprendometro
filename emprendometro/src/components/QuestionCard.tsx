@@ -1,13 +1,13 @@
-// src/components/QuestionCard.tsx
 import { memo, useMemo } from "react";
 
 type Props = {
-  q: any; // Aceptamos cualquier forma; lo normalizamos dentro
+  q: any;
+  qid: string;                   // <<-- nuevo
   selected?: number | null;
   onSelect: (value: number) => void;
 };
 
-function fromArrayLike(arr: any[]): { label: string; value: number }[] {
+function fromArrayLike(arr: any[]) {
   if (!arr?.length) return [];
   if (typeof arr[0] === "string") {
     return (arr as string[]).slice(0, 4).map((t, i) => ({
@@ -15,7 +15,6 @@ function fromArrayLike(arr: any[]): { label: string; value: number }[] {
       value: i + 1,
     }));
   }
-  // array de objetos {text|label|name|value}
   return (arr as any[]).slice(0, 4).map((o, i) => {
     const txt = o?.text ?? o?.label ?? o?.name ?? o?.value ?? "";
     const val = o?.value != null ? Number(o.value) : i + 1;
@@ -27,7 +26,6 @@ function fromArrayLike(arr: any[]): { label: string; value: number }[] {
 }
 
 function normalizeOptions(q: any) {
-  // 1) arrays en múltiples claves conocidas
   const arrayKeys = [
     "options",
     "choices",
@@ -45,7 +43,6 @@ function normalizeOptions(q: any) {
     }
   }
 
-  // 2) objeto choices {A|a,B|b,C|c,D|d}
   if (q?.choices && !Array.isArray(q.choices) && typeof q.choices === "object") {
     const obj = q.choices as Record<string, any>;
     const A = obj.A ?? obj.a;
@@ -60,7 +57,6 @@ function normalizeOptions(q: any) {
     }
   }
 
-  // 3) claves sueltas A/B/C/D (o minúsculas)
   {
     const A = q?.A ?? q?.a;
     const B = q?.B ?? q?.b;
@@ -74,7 +70,6 @@ function normalizeOptions(q: any) {
     }
   }
 
-  // 4) patrones op1/op2/op3/op4 | respuesta_1 | alt-2 | etc
   const entries = Object.entries(q ?? {});
   const candidateRegex = /^(op|opt|option|resp|respuesta|ans|alt|opcion)[ _-]?(1|2|3|4)$/i;
   const numbered = entries
@@ -93,18 +88,7 @@ function normalizeOptions(q: any) {
     }));
   }
 
-  // 5) último recurso: primeras 4 cadenas del objeto (excluye metadatos comunes)
-  const ignore = new Set([
-    "id",
-    "text",
-    "question",
-    "title",
-    "dimension",
-    "dim",
-    "category",
-    "group",
-    "weight",
-  ]);
+  const ignore = new Set(["id", "text", "question", "title", "dimension", "dim", "category", "group", "weight"]);
   const strings = entries
     .filter(([k, v]) => typeof v === "string" && !ignore.has(k))
     .slice(0, 4);
@@ -116,8 +100,6 @@ function normalizeOptions(q: any) {
     }));
   }
 
-  // 6) no encontrado → mostramos placeholders y LOG forzoso para depurar
-  // ⚠️ Este log debería verse en F12 (DevTools) en modo dev y también en Vercel (logs del navegador no, pero sí en tu local).
   console.log("[QuestionCard] No pude detectar opciones en la pregunta:", q);
   return [
     { label: "A) ", value: 1 },
@@ -127,9 +109,8 @@ function normalizeOptions(q: any) {
   ];
 }
 
-export default memo(function QuestionCard({ q, selected, onSelect }: Props) {
+export default memo(function QuestionCard({ q, qid, selected, onSelect }: Props) {
   const opts = useMemo(() => normalizeOptions(q), [q]);
-  const groupName = `q-${q?.id ?? "x"}`;
 
   return (
     <div className="max-w-3xl mx-auto mt-4">
@@ -139,7 +120,7 @@ export default memo(function QuestionCard({ q, selected, onSelect }: Props) {
           <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
             <input
               type="radio"
-              name={groupName}
+              name={qid}                     // <<-- ahora el grupo SIEMPRE es único
               value={opt.value}
               checked={selected === opt.value}
               onChange={() => onSelect(Number(opt.value))}
@@ -152,3 +133,4 @@ export default memo(function QuestionCard({ q, selected, onSelect }: Props) {
     </div>
   );
 });
+
