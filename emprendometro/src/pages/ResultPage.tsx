@@ -1,20 +1,25 @@
+// src/pages/ResultPage.tsx
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
-import { TestContext } from "../context/TestContext";
-import ResultChart from "../components/ResultChart";
-import { levelLabel, dimensionLabels, calcScores } from "../utils/score";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { TestContext } from "../context/TestContext";
 import { useAuth } from "../context/AuthContext";
+import ResultChart from "../components/ResultChart";
+import FeedbackView from "../components/FeedbackView";
+import { levelLabel, dimensionLabels, calcScores } from "../utils/score";
+import type { ScoreByDimension } from "../utils/score";
 import {
   getLastResult,
   insertResult,
   fromJson,
   updateResultFeedback,
 } from "../services/results";
-import type { ScoreByDimension } from "../utils/score";
-import FeedbackView from "../components/FeedbackView";
-import { API_BASE } from "../config";
 
 type LocationState = { from: "completed"; scores: ScoreByDimension[] } | undefined;
+
+function safeParseJson(v: any) {
+  if (typeof v !== "string") return v;
+  try { return JSON.parse(v); } catch { return null; }
+}
 
 export default function ResultPage() {
   const { state, dispatch } = useContext(TestContext);
@@ -25,14 +30,15 @@ export default function ResultPage() {
 
   const [displayScores, setDisplayScores] = useState<ScoreByDimension[] | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "ok" | "error">("idle");
+
   const [feedback, setFeedback] = useState<any>(null);
-  const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "loading" | "ok" | "error">("idle");
-  const [feedbackError, setFeedbackError] = useState<string | null>(null); // <-- para ver detalle de error
+  const [feedbackStatus, setFeedbackStatus] =
+    useState<"idle" | "loading" | "ok" | "error">("idle");
+
   const savedOnce = useRef(false);
   const lastResultIdRef = useRef<string | null>(null);
-  const attemptedRef = useRef(false); // <-- evita reintento infinito por montaje
 
-  // 1) Inserción del resultado si vengo de "Finalizar".
+  // Inserción si vengo de "Finalizar"; caso contrario, leo último resultado
   useEffect(() => {
     if (!user) return;
 
@@ -43,15 +49,15 @@ export default function ResultPage() {
       (async () => {
         setStatus("saving");
         const { error } = await insertResult(user.id, incoming.scores);
-        if (error) setStatus("error"); else setStatus("ok");
-        // Limpio el state para evitar re-insertar al refrescar
+        setStatus(error ? "error" : "ok");
+        // Limpio history state para evitar re-insertar en refresh:
         navigate("/result", { replace: true });
       })();
 
-      return; // No sigo al fetch en este render
+      return;
     }
 
-    // 2) Visita normal o refresh → leer último resultado desde DB (incluye feedback si existe)
+    // Refresh/visita normal: traigo el último row, incluyendo feedback si existe
     (async () => {
       const { data, error } = await getLastResult(user.id);
       if (error) { console.error(error); return; }
@@ -59,64 +65,58 @@ export default function ResultPage() {
 
       lastResultIdRef.current = data.id;
       setDisplayScores(fromJson(data.scores as any));
-      setFeedback(data.feedback ?? null);
+      setFeedback(safeParseJson(data.feedback)); // ← maneja jsonb o string histórico
     })();
   }, [user, incoming, navigate]);
 
-  // 3) Si tengo scores y no tengo feedback, lo genero (una sola vez por montaje) y lo guardo en DB
+  // Generar feedback una sola vez si no existe en DB
   useEffect(() => {
-    const canGenerate =
-      !!user &&
-      !!displayScores &&
-      !feedback &&
-      !!lastResultIdRef.current &&
-      !attemptedRef.current;
-
+    const canGenerate = !!user && !!displayScores && !feedback && !!lastResultIdRef.current;
     if (!canGenerate) return;
-
-    attemptedRef.current = true; // evitamos reintentos en bucle en este montaje
 
     (async () => {
       try {
         setFeedbackStatus("loading");
-        setFeedbackError(null);
 
-        const scoresObj = Object.fromEntries(displayScores!.map(s => [s.dimension, s.value]));
+        const scoresObj = Object.fromEntries(
+          displayScores!.map((s) => [s.dimension, s.value])
+        );
 
-        const resp = await fetch(`${API_BASE}/api/generate-feedback`, {
+        const resp = await fetch("/api/generate-feedback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ scores: scoresObj, userEmail: user!.email }),
         });
 
-        const txt = await resp.text();
-        let json: any = null;
-        try {
-          json = JSON.parse(txt);
-        } catch {
-          // si no es JSON, guardo el texto entero como error
-          if (!resp.ok) {
-            setFeedbackError(txt || `HTTP ${resp.status}`);
-            throw new Error(txt || `HTTP ${resp.status}`);
-          }
-        }
-
         if (!resp.ok) {
-          const detail = json?.detail || json?.error || `HTTP ${resp.status}`;
-          setFeedbackError(detail);
-          throw new Error(detail);
+          let payload: any = {};
+          try { payload = await resp.json(); } catch {}
+          if (resp.status === 429) {
+            setFeedbackStatus("error");
+            setFeedback(`QUOTA: ${payload?.detail || payload?.error || "Quota exceeded"}`);
+            return;
+          }
+          setFeedbackStatus("error");
+          setFeedback(payload?.detail || payload?.error || "Unknown error");
+          return;
         }
 
-        setFeedback(json.feedback);
-        await updateResultFeedback(lastResultIdRef.current!, json.feedback);
-        setFeedbackStatus("ok");
-      } catch (e: any) {
+        const { feedback: fb } = await resp.json(); // objeto
+        setFeedback(fb);
+
+        const { error: upErr } = await updateResultFeedback(lastResultIdRef.current!, fb);
+        if (upErr) {
+          console.error("updateResultFeedback error:", upErr);
+          setFeedbackStatus("error");
+        } else {
+          setFeedbackStatus("ok");
+        }
+      } catch (e) {
         console.error(e);
         setFeedbackStatus("error");
-        if (!feedbackError) setFeedbackError(e?.message ?? "unknown");
       }
     })();
-  }, [user, displayScores, feedback, API_BASE]);
+  }, [user, displayScores, feedback]);
 
   const scores = displayScores ?? calcScores(state.answers);
   const total = useMemo(() => scores.reduce((a, s) => a + s.value, 0), [scores]);
@@ -148,15 +148,20 @@ export default function ResultPage() {
         {feedbackStatus === "loading" && (
           <p className="text-sm text-gray-500">Generando tu feedback personalizado…</p>
         )}
-        {feedback && <FeedbackView data={feedback} />}
-        {feedbackStatus === "error" && (
+
+        {feedback && typeof feedback === "string" && feedback.startsWith("QUOTA") && (
+          <div className="mt-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-sm text-yellow-800">
+            <b>Sin créditos de IA</b>. Tus resultados están guardados correctamente.
+            Cuando recarguemos crédito podrás reintentar.
+          </div>
+        )}
+
+        {feedback && typeof feedback !== "string" && <FeedbackView data={feedback} />}
+
+        {feedbackStatus === "error" && (!feedback || !String(feedback).startsWith("QUOTA")) && (
           <p className="text-sm text-red-700">
             No pudimos generar el feedback ahora. Inténtalo más tarde.
-            {feedbackError ? (
-              <span className="block text-xs text-gray-500 mt-1">
-                Detalle: {feedbackError}
-              </span>
-            ) : null}
+            {feedback ? <> Detalle: {String(feedback)}</> : null}
           </p>
         )}
       </div>
