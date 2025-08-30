@@ -1,54 +1,44 @@
 // src/components/Donut.tsx
-import React from "react";
-
-type DonutProps = {
-  /** 0..100 */
-  value: number;
-  size?: number;
-  strokeWidth?: number;
-  color?: string; // tailwind-compatible hex (we use inline style)
-  label?: string;
-};
+import { PieChart, Pie, Cell } from "recharts";
 
 export default function Donut({
-  value,
-  size = 120,
-  strokeWidth = 12,
-  color = "#16a34a", // verde
-  label = "Total",
-}: DonutProps) {
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-  const dash = (Math.max(0, Math.min(100, value)) / 100) * circumference;
-
+  value, // 0..100
+  label,
+  color = "#0ea5a4",
+}: {
+  value: number;
+  label: string;
+  color?: string;
+}) {
+  const data = [
+    { name: "done", value },
+    { name: "rest", value: Math.max(0, 100 - value) },
+  ];
   return (
-    <div className="flex flex-col items-center">
-      <svg width={size} height={size} className="-rotate-90">
-        {/* track */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke="#e5e7eb"
-          strokeWidth={strokeWidth}
-          fill="transparent"
-        />
-        {/* progress */}
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          fill="transparent"
-          strokeLinecap="round"
-          strokeDasharray={`${dash} ${circumference - dash}`}
-        />
-      </svg>
-      <div className="-mt-24 text-center rotate-90">
-        <div className="text-2xl font-bold">{Math.round(value)}%</div>
-        <div className="text-xs text-gray-500">{label}</div>
+    <div className="relative" style={{ width: 180, height: 180 }}>
+      <PieChart width={180} height={180}>
+        <Pie
+          data={data}
+          innerRadius={60}
+          outerRadius={80}
+          startAngle={90}
+          endAngle={-270}
+          paddingAngle={2}
+          dataKey="value"
+        >
+          <Cell key="done" fill={color} />
+          <Cell key="rest" fill="#e5e7eb" />
+        </Pie>
+      </PieChart>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-2xl font-bold text-gray-800">
+            {Math.round(value)}%
+          </div>
+          <div className="text-xs text-gray-500">{label}</div>
+        </div>
       </div>
     </div>
   );
 }
+

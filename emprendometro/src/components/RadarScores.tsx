@@ -1,39 +1,38 @@
 // src/components/RadarScores.tsx
-import React from "react";
 import {
-  ResponsiveContainer,
   RadarChart,
   PolarGrid,
   PolarAngleAxis,
   Radar,
+  ResponsiveContainer,
 } from "recharts";
 import type { ScoreByDimension } from "../utils/score";
-import { dimensionLabels, getColor } from "../utils/score";
+import { dimensionLabels } from "../utils/score";
 
-type Props = { data: ScoreByDimension[] };
+const labelOf = (d: string) =>
+  dimensionLabels[d as keyof typeof dimensionLabels] ?? d;
 
-export default function RadarScores({ data }: Props) {
-  // Normalizamos a 0..1 para que el radar sea proporcional
-  const ds = data.map((d) => ({
-    name: dimensionLabels[d.dimension],
-    value: d.value / 20, // 0..1
-    raw: d.value,
+export default function RadarScores({ data }: { data: ScoreByDimension[] }) {
+  const rad = data.map((d) => ({
+    name: labelOf(d.dimension),
+    value: d.value,
   }));
 
   return (
-    <div className="w-full h-72">
-      <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={ds} outerRadius="70%">
-          <PolarGrid stroke="#e5e7eb" />
-          <PolarAngleAxis dataKey="name" tick={{ fontSize: 11 }} />
+    <div style={{ width: "100%", height: 280 }}>
+      <ResponsiveContainer>
+        <RadarChart data={rad}>
+          <PolarGrid />
+          <PolarAngleAxis dataKey="name" />
           <Radar
             dataKey="value"
             stroke="#2563eb"
             fill="#2563eb"
-            fillOpacity={0.25}
+            fillOpacity={0.2}
           />
         </RadarChart>
       </ResponsiveContainer>
     </div>
   );
 }
+
