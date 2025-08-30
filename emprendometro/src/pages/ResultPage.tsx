@@ -5,7 +5,8 @@ import { TestContext } from "../context/TestContext";
 import { useAuth } from "../context/AuthContext";
 import ResultChart from "../components/ResultChart";
 import FeedbackView from "../components/FeedbackView";
-import { levelLabel, dimensionLabels, calcScores, type ScoreByDimension } from "../utils/score";
+import { levelLabel, dimensionLabels, calcScores } from "../utils/score";
+import type { ScoreByDimension } from "../utils/score";
 import {
   getLastResult,
   insertResult,
@@ -29,7 +30,6 @@ export default function ResultPage() {
 
   const [displayScores, setDisplayScores] = useState<ScoreByDimension[] | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "ok" | "error">("idle");
-
   const [feedback, setFeedback] = useState<any>(null);
   const [feedbackStatus, setFeedbackStatus] =
     useState<"idle" | "loading" | "ok" | "error">("idle");
@@ -40,31 +40,31 @@ export default function ResultPage() {
   useEffect(() => {
     if (!user) return;
 
+    // Inserto si vengo de “Finalizar”
     if (incoming?.from === "completed" && incoming.scores && !savedOnce.current) {
       savedOnce.current = true;
       setDisplayScores(incoming.scores);
-
       (async () => {
         setStatus("saving");
         const { error } = await insertResult(user.id, incoming.scores);
         setStatus(error ? "error" : "ok");
-        navigate("/result", { replace: true });
+        navigate("/result", { replace: true }); // Evita reinsertar al refrescar
       })();
-
       return;
     }
 
+    // Refresh/visita normal
     (async () => {
       const { data, error } = await getLastResult(user.id);
       if (error) { console.error(error); return; }
       if (!data) { navigate("/test", { replace: true }); return; }
-
       lastResultIdRef.current = data.id;
       setDisplayScores(fromJson(data.scores as any));
       setFeedback(safeParseJson(data.feedback));
     })();
   }, [user, incoming, navigate]);
 
+  // Generar feedback si no existe
   useEffect(() => {
     const canGenerate = !!user && !!displayScores && !feedback && !!lastResultIdRef.current;
     if (!canGenerate) return;
@@ -72,11 +72,9 @@ export default function ResultPage() {
     (async () => {
       try {
         setFeedbackStatus("loading");
-
         const scoresObj = Object.fromEntries(
           displayScores!.map((s) => [s.dimension, s.value])
         );
-
         const resp = await fetch("/api/generate-feedback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -86,8 +84,13 @@ export default function ResultPage() {
         if (!resp.ok) {
           let payload: any = {};
           try { payload = await resp.json(); } catch {}
+          if (resp.status === 429) {
+            setFeedbackStatus("error");
+            setFeedback(`QUOTA: ${payload?.detail || payload?.error || "Quota exceeded"}`);
+            return;
+          }
           setFeedbackStatus("error");
-          setFeedback(payload?.detail || payload?.error || `HTTP ${resp.status}`);
+          setFeedback(payload?.detail || payload?.error || "Unknown error");
           return;
         }
 
@@ -95,8 +98,13 @@ export default function ResultPage() {
         setFeedback(fb);
 
         const { error: upErr } = await updateResultFeedback(lastResultIdRef.current!, fb);
-        setFeedbackStatus(upErr ? "error" : "ok");
-      } catch (e: any) {
+        if (upErr) {
+          console.error("updateResultFeedback error:", upErr);
+          setFeedbackStatus("error");
+        } else {
+          setFeedbackStatus("ok");
+        }
+      } catch (e) {
         console.error(e);
         setFeedbackStatus("error");
       }
@@ -107,44 +115,52 @@ export default function ResultPage() {
   const total = useMemo(() => scores.reduce((a, s) => a + s.value, 0), [scores]);
 
   return (
-    <div className="px-4">
-      <div className="max-w-5xl mx-auto">
-        <h1 className="text-3xl font-bold mt-4 mb-2 text-center">
-          Resultados del Emprendómetro
-        </h1>
-        <p className="text-center text-slate-600 mb-4">
-          Puntaje total: <b>{total}/160</b>
-        </p>
+    <div className="px-4 py-6">
+      <div className="mx-auto max-w-5xl">
+        <h1 className="text-3xl font-bold mb-2 text-slate-800">Resultados del Emprendómetro</h1>
+        <p className="text-gray-600 mb-6">Puntaje total: <b>{total}/160</b></p>
 
-        {/* Card centrada para el chart */}
-        <div className="bg-white rounded-xl shadow p-6 flex justify-center">
-          <ResultChart data={scores} />
+        {/* Centrado del gráfico */}
+        <div className="flex justify-center">
+          <div className="w-full max-w-2xl">
+            <ResultChart data={scores} />
+          </div>
         </div>
 
-        <div className="mt-3 text-center">
+        <div className="mt-4">
           {status === "saving" && <p className="text-sm text-gray-500">Guardando tu resultado…</p>}
           {status === "ok" && <p className="text-sm text-green-700">Resultado guardado ✅</p>}
           {status === "error" && <p className="text-sm text-red-700">No pudimos guardar el resultado.</p>}
         </div>
 
-        {/* Feedback IA en tarjetas */}
-        <div className="mt-8">
+        {/* ==== FEEDBACK PRO ====*/}
+
+        <div className="mt-10">
           {feedbackStatus === "loading" && (
-            <p className="text-sm text-gray-500 text-center">Generando tu feedback personalizado…</p>
+            <p className="text-sm text-gray-500">Generando tu feedback personalizado…</p>
+          )}
+
+          {feedback && typeof feedback === "string" && feedback.startsWith("QUOTA") && (
+            <div className="mt-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-sm text-yellow-800">
+              <b>Sin créditos de IA</b>. Tus resultados están guardados correctamente.
+              Cuando recarguemos crédito podrás reintentar.
+            </div>
           )}
 
           {feedback && typeof feedback !== "string" && (
             <FeedbackView data={feedback} scores={scores} />
           )}
 
-          {feedbackStatus === "error" && typeof feedback === "string" && (
-            <p className="text-sm text-red-700 text-center">
-              No pudimos generar el feedback ahora. Detalle: {feedback}
+          {feedbackStatus === "error" &&
+            (!feedback || !String(feedback).startsWith("QUOTA")) && (
+            <p className="text-sm text-red-700">
+              No pudimos generar el feedback ahora. Inténtalo más tarde.
+              {feedback ? <> Detalle: {String(feedback)}</> : null}
             </p>
           )}
         </div>
 
-        <div className="mt-10 mb-8 flex flex-wrap justify-center gap-3">
+        <div className="mt-10 flex flex-wrap justify-center gap-3">
           <Link
             to="/"
             onClick={() => dispatch({ type: "RESET" })}
@@ -152,7 +168,6 @@ export default function ResultPage() {
           >
             Volver al inicio
           </Link>
-
           <button
             onClick={() => {
               dispatch({ type: "RESET" });
@@ -167,3 +182,4 @@ export default function ResultPage() {
     </div>
   );
 }
+
