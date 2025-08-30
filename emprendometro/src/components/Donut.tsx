@@ -1,44 +1,67 @@
 // src/components/Donut.tsx
-import { PieChart, Pie, Cell } from "recharts";
+import React from "react";
+
+// Mapea puntaje -> color
+function scoreColor(v: number) {
+  if (v >= 17) return "#16a34a"; // verde
+  if (v >= 10) return "#facc15"; // amarillo
+  return "#ef4444";             // rojo
+}
+
+type DonutProps = {
+  value: number;         // 0..20
+  size?: number;         // diámetro en px
+  stroke?: number;       // grosor del anillo
+  showText?: boolean;    // mostrar "x/20" dentro
+};
 
 export default function Donut({
-  value, // 0..100
-  label,
-  color = "#0ea5a4",
-}: {
-  value: number;
-  label: string;
-  color?: string;
-}) {
-  const data = [
-    { name: "done", value },
-    { name: "rest", value: Math.max(0, 100 - value) },
-  ];
+  value,
+  size = 56,        // tamaño pequeño por defecto
+  stroke = 6,       // grosor del borde
+  showText = true,
+}: DonutProps) {
+  const pct = Math.max(0, Math.min(100, (value / 20) * 100));
+  const radius = 16;                // radio del círculo de base (SVG viewBox 36x36)
+  const circumference = 2 * Math.PI * radius;
+  const dash = (pct / 100) * circumference;
+
+  const px = `${size}px`;
+  const color = scoreColor(value);
+
   return (
-    <div className="relative" style={{ width: 180, height: 180 }}>
-      <PieChart width={180} height={180}>
-        <Pie
-          data={data}
-          innerRadius={60}
-          outerRadius={80}
-          startAngle={90}
-          endAngle={-270}
-          paddingAngle={2}
-          dataKey="value"
-        >
-          <Cell key="done" fill={color} />
-          <Cell key="rest" fill="#e5e7eb" />
-        </Pie>
-      </PieChart>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-2xl font-bold text-gray-800">
-            {Math.round(value)}%
-          </div>
-          <div className="text-xs text-gray-500">{label}</div>
+    <div style={{ width: px, height: px }} className="relative shrink-0">
+      <svg viewBox="0 0 36 36" className="w-full h-full">
+        {/* Fondo */}
+        <circle
+          cx="18"
+          cy="18"
+          r={radius}
+          fill="none"
+          stroke="#e5e7eb"     // gris claro
+          strokeWidth={stroke}
+        />
+        {/* Progreso */}
+        <circle
+          cx="18"
+          cy="18"
+          r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={`${dash} ${circumference - dash}`}
+          transform="rotate(-90 18 18)" // comienzo en la parte superior
+        />
+      </svg>
+
+      {showText && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-[10px] font-semibold text-slate-700">
+            {value}/20
+          </span>
         </div>
-      </div>
+      )}
     </div>
   );
 }
-

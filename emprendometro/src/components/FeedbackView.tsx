@@ -1,153 +1,140 @@
-import { CircularProgressbar, buildStyles } from "react-circular-progressbar";
-import "react-circular-progressbar/dist/styles.css";
-import type { ScoreByDimension } from "../utils/score";
+// src/components/FeedbackView.tsx
+import StrengthCard from "./StrengthCard";
+import ImproveCard from "./ImproveCard";
+import { dimensionLabels } from "../utils/score";
 
 type Feedback = {
   headline: string;
   summary: string;
   strengths: { dimension: string; score: number; insight: string }[];
-  improvements: { dimension: string; score: number; insight: string; quick_habits: string[] }[];
-  action_plan: { next_7_days: string[]; next_30_days: string[] };
-  recommended_role: string;
+  improvements: {
+    dimension: string;
+    score: number;
+    insight: string;
+    quick_habits?: string[];
+  }[];
+  action_plan?: {
+    next_7_days?: string[];
+    next_30_days?: string[];
+  };
+  recommended_role?: string;
 };
 
-function gaugeColor(score: number) {
-  if (score >= 17) return "#16A34A";       // verde
-  if (score >= 10) return "#F59E0B";       // amarillo
-  return "#DC2626";                        // rojo
-}
+export default function FeedbackView({ data }: { data: Feedback }) {
+  const role = data.recommended_role || "—";
+  const summary = data.summary || "";
 
-function CircleStat({
-  label,
-  score,
-  text,
-}: {
-  label: string;
-  score: number;
-  text: string;
-}) {
-  const pct = Math.round((score / 20) * 100);
-  const color = gaugeColor(score);
+  // Construyo “píldoras” de perfil (dimensión — score) sin repetir tablitas
+  const pills =
+    [...(data.strengths || []), ...(data.improvements || [])]
+      // orden opcional por score desc
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 8);
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 flex items-start gap-4">
-      <div className="w-16 h-16">
-        <CircularProgressbar
-          value={pct}
-          text={`${score}/20`}
-          styles={buildStyles({
-            pathColor: color,
-            textColor: "#0F172A",
-            trailColor: "#E5E7EB",
-            textSize: "24px",
-          })}
-        />
-      </div>
-      <div className="flex-1">
-        <div className="flex items-baseline justify-between">
-          <h5 className="font-semibold text-slate-800">{label}</h5>
+    <section className="mt-10 mx-auto max-w-4xl">
+      {/* ROL RECOMENDADO */}
+      <div className="rounded-xl p-5 bg-gradient-to-r from-sky-50 to-indigo-50 border border-indigo-100 shadow-sm text-center">
+        <div className="text-sm uppercase tracking-wide text-indigo-600 font-semibold">
+          Rol recomendado
         </div>
-        <p className="text-sm text-slate-600 mt-1 leading-relaxed">{text}</p>
+        <div className="text-2xl font-bold text-slate-800 mt-1">{role}</div>
       </div>
-    </div>
-  );
-}
 
-function Card({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`rounded-2xl border border-slate-200 bg-white shadow-sm p-5 ${className}`}>
-      {children}
-    </div>
-  );
-}
-
-export default function FeedbackView({
-  data,
-}: {
-  data: Feedback;
-}) {
-  // 1) Rol recomendado (hero con gradiente)
-  const Hero = (
-    <div className="rounded-2xl p-6 text-white bg-gradient-to-r from-indigo-600 to-teal-500 shadow-md text-center">
-      <p className="text-xs uppercase tracking-wider opacity-90">Rol recomendado</p>
-      <h3 className="text-2xl font-bold mt-1">{data.recommended_role}</h3>
-      {/* Subtítulo corto (headline) */}
-      <p className="mt-2 text-sm opacity-95">{data.headline}</p>
-    </div>
-  );
-
-  return (
-    <div className="space-y-8 max-w-4xl mx-auto">
-      {Hero}
-
-      {/* 2) Resumen del perfil */}
-      <Card>
-        <h4 className="text-sm font-semibold text-slate-700 mb-2">Resumen del perfil</h4>
-        <p className="text-sm text-slate-600 leading-relaxed text-center">
-          {data.summary}
+      {/* RESUMEN */}
+      {summary && (
+        <p className="mt-6 text-slate-700 leading-relaxed text-center">
+          {summary}
         </p>
-      </Card>
+      )}
 
-      {/* 3) Fortalezas */}
-      {data.strengths?.length > 0 && (
-        <div>
-          <h4 className="text-base font-semibold text-slate-800 mb-3 text-center">Fortalezas</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.strengths.map((st, i) => (
-              <CircleStat
-                key={i}
-                label={st.dimension}
-                score={st.score}
-                text={st.insight}
-              />
+      {/* PÍLDORAS DE PERFIL */}
+      {pills.length > 0 && (
+        <div className="mt-6 flex flex-wrap justify-center gap-2">
+          {pills.map((p, idx) => {
+            const label =
+              dimensionLabels[p.dimension as keyof typeof dimensionLabels] ||
+              p.dimension;
+            const colorCls =
+              p.score >= 17
+                ? "bg-green-100 text-green-700"
+                : p.score >= 10
+                ? "bg-yellow-100 text-yellow-700"
+                : "bg-red-100 text-red-700";
+            return (
+              <span
+                key={`${p.dimension}-${idx}`}
+                className={`text-xs px-2 py-1 rounded-full ${colorCls}`}
+              >
+                {label} {p.score}/20
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* FORTALEZAS */}
+      {data.strengths && data.strengths.length > 0 && (
+        <div className="mt-10">
+          <h3 className="text-lg font-semibold text-slate-800 mb-3 text-center">
+            Fortalezas
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {data.strengths.map((s, i) => (
+              <StrengthCard key={`${s.dimension}-${i}`} item={s} />
             ))}
           </div>
         </div>
       )}
 
-      {/* 4) Áreas de mejora */}
-      {data.improvements?.length > 0 && (
-        <div>
-          <h4 className="text-base font-semibold text-slate-800 mb-3 text-center">Áreas de mejora</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {data.improvements.map((imp, i) => (
-              <CircleStat
-                key={i}
-                label={imp.dimension}
-                score={imp.score}
-                text={imp.insight}
-              />
+      {/* ÁREAS DE MEJORA */}
+      {data.improvements && data.improvements.length > 0 && (
+        <div className="mt-8">
+          <h3 className="text-lg font-semibold text-slate-800 mb-3 text-center">
+            Áreas de mejora
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {data.improvements.map((i, idx) => (
+              <ImproveCard key={`${i.dimension}-${idx}`} item={i} />
             ))}
           </div>
         </div>
       )}
 
-      {/* 5) Plan de acción (sin cambios visuales grandes) */}
-      <Card>
-        <h4 className="text-base font-semibold text-slate-800 mb-3 text-center">Plan de acción</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500 mb-2 text-center md:text-left">
-              Próximos 7 días
-            </p>
-            <ul className="text-sm text-slate-700 list-disc pl-6 space-y-1">
-              {data.action_plan.next_7_days.map((t, i) => (
-                <li key={i}>{t}</li>
-              ))}
-            </ul>
-          </div>
+      {/* PLAN DE ACCIÓN */}
+      {data.action_plan && (
+        <div className="mt-10">
+          <h3 className="text-lg font-semibold text-slate-800 mb-3 text-center">
+            Plan de acción
+          </h3>
 
-          <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500 mb-2 text-center md:text-left">
-              Próximos 30 días
-            </p>
-            <ul className="text-sm text-slate-700 list-disc pl-6 space-y-1">
-              {data.action_plan.next_30_days.map((t, i) => (
-                <li key={i}>{t}</li>
-              ))}
-            </ul>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* 7 días */}
+            <div className="rounded-xl border border-slate-200 p-4 bg-white/80 shadow-sm">
+              <div className="text-sm font-semibold text-slate-700">
+                Próximos 7 días
+              </div>
+              <ul className="mt-2 list-disc pl-5 text-slate-700 text-sm">
+                {(data.action_plan.next_7_days || []).map((t, i) => (
+                  <li key={i}>{t}</li>
+                ))}
+              </ul>
+            </div>
+
+            {/* 30 días */}
+            <div className="rounded-xl border border-slate-200 p-4 bg-white/80 shadow-sm">
+              <div className="text-sm font-semibold text-slate-700">
+                Próximos 30 días
+              </div>
+              <ul className="mt-2 list-disc pl-5 text-slate-700 text-sm">
+                {(data.action_plan.next_30_days || []).map((t, i) => (
+                  <li key={i}>{t}</li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
-      </Card>
-    </div>
+      )}
+    </section>
   );
 }
