@@ -5,7 +5,7 @@ import { TestContext } from "../context/TestContext";
 import { useAuth } from "../context/AuthContext";
 import ResultChart from "../components/ResultChart";
 import FeedbackView from "../components/FeedbackView";
-import { levelLabel, dimensionLabels, calcScores } from "../utils/score";
+import { calcScores } from "../utils/score";
 import type { ScoreByDimension } from "../utils/score";
 import {
   getLastResult,
@@ -112,62 +112,55 @@ export default function ResultPage() {
   }, [user, displayScores, feedback]);
 
   const scores = displayScores ?? calcScores(state.answers);
-  const total = useMemo(() => scores.reduce((a, s) => a + s.value, 0), [scores]);
 
   return (
     <div className="px-4 py-6">
       <div className="mx-auto max-w-5xl">
-        <h1 className="text-3xl font-bold mb-2 text-slate-800">Resultados del Emprendómetro</h1>
-        <p className="text-gray-600 mb-6">Puntaje total: <b>{total}/160</b></p>
+        {/* Título nuevo */}
+        <h1 className="text-3xl font-bold mb-8 text-center text-slate-800">Tus resultados</h1>
 
-        {/* Centrado del gráfico */}
-        <div className="flex justify-center">
+        {/* Gráfico centrado */}
+        <div className="flex justify-center mb-8">
           <div className="w-full max-w-2xl">
             <ResultChart data={scores} />
           </div>
         </div>
 
-        <div className="mt-4">
-          {status === "saving" && <p className="text-sm text-gray-500">Guardando tu resultado…</p>}
-          {status === "ok" && <p className="text-sm text-green-700">Resultado guardado ✅</p>}
-          {status === "error" && <p className="text-sm text-red-700">No pudimos guardar el resultado.</p>}
+        {/* Estado de guardado (discreto) */}
+        <div className="mt-2 text-center">
+          {status === "saving" && <p className="text-xs text-gray-500">Guardando tu resultado…</p>}
+          {status === "ok" && <p className="text-xs text-green-700">Resultado guardado ✅</p>}
+          {status === "error" && <p className="text-xs text-red-700">No pudimos guardar el resultado.</p>}
         </div>
 
-        {/* ==== FEEDBACK PRO ====*/}
-
+        {/* ==== FEEDBACK === */}
         <div className="mt-10">
           {feedbackStatus === "loading" && (
-            <p className="text-sm text-gray-500">Generando tu feedback personalizado…</p>
+            <p className="text-sm text-gray-500 text-center">Generando tu feedback personalizado…</p>
           )}
 
           {feedback && typeof feedback === "string" && feedback.startsWith("QUOTA") && (
-            <div className="mt-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-sm text-yellow-800">
+            <div className="mt-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-sm text-yellow-800 text-center">
               <b>Sin créditos de IA</b>. Tus resultados están guardados correctamente.
               Cuando recarguemos crédito podrás reintentar.
             </div>
           )}
 
           {feedback && typeof feedback !== "string" && (
-            <FeedbackView data={feedback} scores={scores} />
+            <FeedbackView data={feedback}  />
           )}
 
           {feedbackStatus === "error" &&
             (!feedback || !String(feedback).startsWith("QUOTA")) && (
-            <p className="text-sm text-red-700">
+            <p className="text-sm text-red-700 text-center">
               No pudimos generar el feedback ahora. Inténtalo más tarde.
               {feedback ? <> Detalle: {String(feedback)}</> : null}
             </p>
           )}
         </div>
 
-        <div className="mt-10 flex flex-wrap justify-center gap-3">
-          <Link
-            to="/"
-            onClick={() => dispatch({ type: "RESET" })}
-            className="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
-          >
-            Volver al inicio
-          </Link>
+        {/* Botón único */}
+        <div className="mt-10 flex justify-center">
           <button
             onClick={() => {
               dispatch({ type: "RESET" });
@@ -182,4 +175,5 @@ export default function ResultPage() {
     </div>
   );
 }
+
 
