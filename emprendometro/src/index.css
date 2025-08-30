@@ -1,19 +1,15 @@
-/* src/index.css */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
   --bg: #ffffff;
-  --fg: #0f172a; /* slate-900 */
-  --muted: #475569; /* slate-600 */
+  --fg: #0f172a;
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html, body, #root {
-  height: 100%;
-}
+html, body, #root { height: 100%; }
 
 body {
   margin: 0;
@@ -24,22 +20,5 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* enlaces */
-a {
-  color: #2563eb; /* blue-600 */
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
-}
-
-/* utilidades opcionales */
-.container {
-  max-width: 64rem; /* 1024px */
-  margin-left: auto;
-  margin-right: auto;
-  padding-left: 1rem;
-  padding-right: 1rem;
-}
-
-
+a { color: #2563eb; text-decoration: none; }
+a:hover { text-decoration: underline; }
