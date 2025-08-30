@@ -200,10 +200,10 @@ export default function ResultPage() {
           </div>
         )}
 
-        {/* 👇 AQUÍ está el ajuste importante: pasar `scores` */}
         {feedback && typeof feedback !== "string" && (
-          <FeedbackView data={feedback} scores={scores} />
+        <FeedbackView data={feedback} scores={scores} />
         )}
+
 
         {feedbackStatus === "error" &&
           (!feedback || !String(feedback).startsWith("QUOTA")) && (
